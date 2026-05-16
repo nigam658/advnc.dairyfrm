@@ -11,14 +11,14 @@ router = APIRouter()
 
 
 @router.post("/add_CowData")
-def add_cow_data(cow: cowDataReq,  db : Session =Depends(get_db)):
+def add_cow_data(cow: cowDataReq, current_user = Depends(get_current_user),  db : Session =Depends(get_db)):
 
-    # if current_user["role"] != "Manager":
+    if current_user["role"] != "Admin":
 
-    #     raise HTTPException(
-    #         status_code=403,
-    #         detail="only Manager can add cow data"
-    #     )
+        raise HTTPException(
+            status_code=403,
+            detail="only Manager can add cow data"
+        )
 
     Existing_cow = db.query(Cow).filter(
         Cow.cow_tag == cow.cow_tag
@@ -68,7 +68,7 @@ def get_single_cow(cow_id: str,db : Session =Depends(get_db)):
 @router.put("/cow/{cow_id}")
 def update_cow(cow_id: str, cow_data: Cow_updateSchema, current_user = Depends(get_current_user), db : Session =Depends(get_db)):
 
-    if current_user["role"] != "Worker":
+    if current_user["role"] != "Admin":
 
         raise HTTPException(
             status_code=403,
@@ -206,7 +206,7 @@ def evening_milk(cow_tag: str, milk: EveningMilkRecordSchema, db: Session = Depe
         raise HTTPException(
             status_code=404,
             detail="Cow not found"
-        )
+        ) 
 
     # automatic/manual date
     milk_date = milk.date or date.today()
@@ -278,12 +278,8 @@ def evening_milk(cow_tag: str, milk: EveningMilkRecordSchema, db: Session = Depe
     
 
 @router.get("/cow/access_MilkRecord")
-def access_MilkRecord(
-    cow_tag: str,
-    current_user = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    print(cow_tag)
+def access_MilkRecord(cow_tag: str, current_user = Depends(get_current_user), db: Session = Depends(get_db)):
+    
     # Check role
     if current_user["role"] not in ["Manager", "Admin"]:
         raise HTTPException(
@@ -297,9 +293,10 @@ def access_MilkRecord(
     ).first()
 
     if not cow_exist:
+        print(cow_tag)
         raise HTTPException(
             status_code=404,
-            detail="cow not found"
+            detail="cow not exist"
         )
 
     # Get milk records
