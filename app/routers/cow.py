@@ -13,7 +13,7 @@ router = APIRouter()
 @router.post("/add_CowData")
 def add_cow_data(cow: cowDataReq, current_user = Depends(get_current_user),  db : Session =Depends(get_db)):
 
-    if current_user["role"] != "Admin":
+    if current_user["role"] not in ["Manager", "Admin"]:
 
         raise HTTPException(
             status_code=403,
@@ -46,18 +46,18 @@ def add_cow_data(cow: cowDataReq, current_user = Depends(get_current_user),  db 
 
 
 # Get cow cow details
-@router.get("/cow/{cow_id}", response_model=get_single_cow_respons)
-def get_single_cow(cow_id: str,db : Session =Depends(get_db)):
+@router.get("/cow", response_model=get_single_cow_respons)
+def get_single_cow(cow_tag: str,db : Session =Depends(get_db)):
 
 
     cow = db.query(Cow).filter(
-        Cow.cow_tag == cow_id
+        Cow.cow_tag == cow_tag
     ).first()
 
     if not cow:
         raise HTTPException(
             status_code=404,
-            detail="Cow not found"
+            detail="Cow not found!"
         )
 
     return cow
@@ -65,8 +65,14 @@ def get_single_cow(cow_id: str,db : Session =Depends(get_db)):
     
 
 # update cow data using their tag
-@router.put("/cow/{cow_id}")
-def update_cow(cow_id: str, cow_data: Cow_updateSchema, current_user = Depends(get_current_user), db : Session =Depends(get_db)):
+@router.put("/cow/{cow_tag}")
+def update_cow(cow_tag: str, cow_data: Cow_updateSchema, current_user = Depends(get_current_user), db : Session =Depends(get_db)):
+
+    if cow_tag != cow_data.cow_tag:
+        raise HTTPException(
+            status_code=400,
+            detail="cow tag missmatch"
+        )
 
     if current_user["role"] != "Admin":
 
@@ -76,9 +82,8 @@ def update_cow(cow_id: str, cow_data: Cow_updateSchema, current_user = Depends(g
         )
 
 
-
     cow = db.query(Cow).filter(
-        Cow.cow_tag == cow_id
+        Cow.cow_tag == cow_tag
     ).first()
 
     if not cow:
@@ -183,7 +188,6 @@ def add_Morning_milk_record(cow_tag: str, milk: MorningMilkRecordSchema, db: Ses
         "message": "Milk record added successfully"
     }
 
-
 # Evening milk router
 @router.post("/cow/{cow_tag}/evening_milk")
 def evening_milk(cow_tag: str, milk: EveningMilkRecordSchema, db: Session = Depends(get_db)):
@@ -277,40 +281,38 @@ def evening_milk(cow_tag: str, milk: EveningMilkRecordSchema, db: Session = Depe
         }
     
 
-@router.get("/cow/access_MilkRecord")
-def access_MilkRecord(cow_tag: str, current_user = Depends(get_current_user), db: Session = Depends(get_db)):
-    
-    # Check role
-    if current_user["role"] not in ["Manager", "Admin"]:
+# get milk record 
+@router.get("/cow/milkrecord")
+def get_milk_record(cow_tag: str,page : int = 1, limit : int = 2, current_user = Depends(get_current_user),db : Session =Depends(get_db)):
+
+    if current_user["role"] != "Admin":
         raise HTTPException(
             status_code=403,
-            detail="you cannot access milk record"
+            detail="You cannot access milk record"
         )
-
-    # Check cow exists
-    cow_exist = db.query(Cow).filter(
+    
+    cow = db.query(Cow).filter(
         Cow.cow_tag == cow_tag
     ).first()
 
-    if not cow_exist:
-        print(cow_tag)
+    if not cow:
         raise HTTPException(
             status_code=404,
-            detail="cow not exist"
+            detail="Cow not found!"
         )
-
-    # Get milk records
+    
     cow_milk_record = db.query(MilkRecord).filter(
         MilkRecord.cow_tag == cow_tag
-    ).all()
-
+        ).order_by(
+            MilkRecord.date.desc()
+            ).offset(
+                (page - 1) * limit
+                ).limit(limit).all() 
+    
     if not cow_milk_record:
         raise HTTPException(
             status_code=404,
-            detail="Milk record not filled"
+            detail="cow milk not filled"
         )
 
-    return {
-        "cow_tag": cow_tag,
-        "data": cow_milk_record
-    }
+    return {"Milkdata" : cow_milk_record}
