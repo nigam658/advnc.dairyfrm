@@ -26,17 +26,3 @@ class get_single_cow_respons(BaseModel):
     model_config = {
         "from_attributes": True
     }
-
-class MorningMilkRecordSchema (BaseModel):
-    cow_tag : str
-
-    date : dt_date | None = None
-
-    morning_milk : float 
-
-class EveningMilkRecordSchema (BaseModel):
-    cow_tag : str
-
-    date : dt_date | None = None
-
-    evening_milk : float 
