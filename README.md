@@ -18,7 +18,6 @@ Backend system for managing dairy farm operations using FastAPI and MySQL.
 * Python
 * MySQL
 * SQLAlchemy
-* Pydantic
 * Alembic
 
 ## Example APIs
