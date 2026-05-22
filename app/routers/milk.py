@@ -1,13 +1,16 @@
-from fastapi import FastAPI, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from app.database import get_db
 from sqlalchemy.orm import Session
 from datetime import date
+from sqlalchemy import func
 
-from app.schemas.milk_schema import MorningMilkRecordSchema, EveningMilkRecordSchema
+from app.schemas.milk_schema import MorningMilkRecordSchema, EveningMilkRecordSchema, ResponseMilkRecord
 from app.models.cow_model import Cow
-from app.
+from app.models.milk_model import MilkRecord
+from app.service.jwt_handler import get_current_user
 
-router = FastAPI()
+
+router = APIRouter()
 
 
 # Morning milk router  
@@ -63,7 +66,7 @@ def add_Morning_milk_record(cow_tag: str, milk: MorningMilkRecordSchema, db: Ses
 
 # Evening milk router
 @router.post("/cow/{cow_tag}/evening_milk")
-def evening_milk(cow_tag: str, milk: EveningMilkRecordSchema, db: Session = Depends(get_db)):
+def add_evening_milk(cow_tag: str, milk: EveningMilkRecordSchema, db: Session = Depends(get_db)):
 
     # cow tag mismatch check
     if cow_tag != milk.cow_tag:
@@ -155,7 +158,7 @@ def evening_milk(cow_tag: str, milk: EveningMilkRecordSchema, db: Session = Depe
     
 
 # get milk record 
-@router.get("/cow/milkrecord")
+@router.get("/cow/milkrecord", response_model=list[ResponseMilkRecord])
 def get_milk_record(cow_tag: str,page : int = 1, limit : int = 2, current_user = Depends(get_current_user),db : Session =Depends(get_db)):
 
     if current_user["role"] != "Admin":
@@ -188,4 +191,22 @@ def get_milk_record(cow_tag: str,page : int = 1, limit : int = 2, current_user =
             detail="cow milk not filled"
         )
 
-    return {"Milkdata" : cow_milk_record}
+    return cow_milk_record
+
+
+@router.get("/cow/highestMilk")
+def highest_milk(db: Session = Depends(get_db)):
+
+    highestMilk = (db.query(
+        MilkRecord.cow_tag,
+        func.sum(MilkRecord.milk_perDay).label("total_milk"))
+        .group_by(MilkRecord.cow_tag)
+        .order_by(func.sum(MilkRecord.milk_perDay).desc())
+        .first() 
+        )
+    
+
+
+    return {"cow_tag" : highestMilk.cow_tag,
+            "milk" : round(highestMilk.total_milk,2)
+            }
