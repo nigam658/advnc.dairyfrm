@@ -116,7 +116,8 @@ def monthly_highest_milk_cow(db:Session, year, month):
         
         return{
             "cow_tag" : highest_milk_produce_cow.cow_tag,
-            "total_milk" : round(highest_milk_produce_cow.total_milk,2)
+            "total_milk" : round(highest_milk_produce_cow.total_milk,2),
+            "cow_name" : "Saraswati"
         }
     
     except Exception as e:
@@ -124,3 +125,22 @@ def monthly_highest_milk_cow(db:Session, year, month):
             "error" : str(e)
         }
 
+def daily_total_milk_record(db:Session, year, month, day):
+    try:
+        exact_date = date(year, month, day)
+
+        milk = db.query(
+            func.sum(MilkRecord.milk_perDay)).filter(
+                MilkRecord.date == exact_date).scalar()
+        
+        if milk is None:
+            milk = 0
+    
+        return {
+            "total_milk" : milk
+        }
+    
+    except Exception as e:
+        return{
+            "error" : str(e)
+        }

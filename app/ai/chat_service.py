@@ -1,26 +1,14 @@
 from app.ai.Geminiai_client import client
 from google.genai.errors import ServerError
+import json
+from datetime import datetime
 
-from app.service.ai_milk_service import highest_milk , lowest_milk, today_milkdata, total_milk_ofMonth, monthly_highest_milk_cow
-
-month= {
-    "january" : 1,
-    "february" : 2,
-    "march" : 3,
-    "april" : 4,
-    "may" : 5,
-    "june" : 6,
-    "july" : 7,
-    "august" : 8,
-    "september" : 9,
-    "october" : 10,
-    "november" : 11,
-    "december" : 12
-}
+from app.service.ai_milk_service import highest_milk , lowest_milk, today_milkdata, total_milk_ofMonth, monthly_highest_milk_cow, daily_total_milk_record
 
 
 # detect Intention
 def detect_intent(question):
+    today = datetime.today()
 
     intent_prompt = f"""
     You are a dairy farm AI intent classifier.
@@ -31,13 +19,40 @@ def detect_intent(question):
     - today_total_milk
     - monthly_total_milk
     - monthly_highest_milk_cow
+    - daily_total_milk_record
 
     User question:
     {question}
 
+    Current date: {today.date()}
+    Current month: {today.month}
+    Current year: {today.year}
+    
+
     Rules:
-    - Return ONLY intent name
+    - Return ONLY valid json
     - No explanation
+    - If user says "this month", use current month and current year
+
+    Example outputs:
+
+    {{
+        "intent": "highest_milk"
+    }}
+
+    {{
+        "intent": "daily_total_milk_record",
+        "day" : 1,
+        "month": 4,
+        "year": 2026
+    }}
+
+    {{
+        "intent": "monthly_total_milk",
+        "month": 4,
+        "year": 2026
+    }}
+
     """
 
     response = client.models.generate_content(
@@ -45,7 +60,7 @@ def detect_intent(question):
         contents=intent_prompt
     )
 
-    return response.text.strip()
+    return json.loads(response.text.strip())
 
 
 # Answer with AI response 
@@ -71,11 +86,23 @@ def ai_format_response(question, raw_answer):
 
 # cretae response to user as follow question
 def generate_response(prompt, db):
-
+    
     question = prompt.lower()
 
-    intent = detect_intent(question)
+    #data comes with json format
+    intent_data = detect_intent(question)
 
+    #store only intent 
+    intent = intent_data["intent"]
+
+    # Access month if comes with json 
+    month = intent_data.get("month")
+
+    # Assign year if comes with json
+    year = intent_data.get("year")
+
+    # Assign date if comes with json
+    day = intent_data.get("day")
 
     # check intent
     if intent == "highest_milk":
@@ -100,7 +127,7 @@ def generate_response(prompt, db):
     elif intent == "today_total_milk":
         data = today_milkdata(db)
 
-        ai_response = ai_format_response(question,data)
+        ai_response = ai_format_response(question,data,)
         
         return {
             "answer" : ai_response
@@ -108,21 +135,20 @@ def generate_response(prompt, db):
 
 
     elif intent == "monthly_total_milk":
-    # find month
-        selected_month = None
-
-        for month_name, month_number in month.items():
-
-            if month_name in question:
-
-                selected_month = month_number
-                break
-        # error handle if month in not in dict 
-        if selected_month is None:
-            return "Please specify month."
+    
+        # error handle if month in not in json
+        if month is None:
+            return {
+                "answer": "Please specify month."
+            }
+        # check year is exist or not
+        if year is None:
+            return {
+                "answer": "Please specify year."
+            }
         
         # Finally we can function with proper data 
-        data = total_milk_ofMonth(db,2026,selected_month)
+        data = total_milk_ofMonth(db, year, month)
 
         ai_response = ai_format_response(question,data)
         
@@ -132,27 +158,54 @@ def generate_response(prompt, db):
     
 
     elif intent == "monthly_highest_milk_cow":
-        # find month
-        selected_month = None
-
-        for month_name, month_number in month.items():
-
-            if month_name in question:
-
-                selected_month = month_number
-                break
-        # error handle if month in not in dict 
-        if selected_month is None:
-            return "Please specify month."
         
-        data = monthly_highest_milk_cow(db,2026, selected_month)
+        # error handle if month in not in json
+        if month is None:
+            return {
+                "answer":"Please specify month."
+            }
+        # check year is exist or not 
+        if year is None:
+            return {
+                "answer": "Please specify year."
+            }
+        
+        data = monthly_highest_milk_cow(db, year, month)
 
         ai_response = ai_format_response(question,data)
         
         return {
             "answer" : ai_response
         } 
-    
+        
+    elif intent == "daily_total_milk_record":
+
+        # error handle if month in not in json
+        if month is None:
+            return {
+                "answer":"Please specify month."
+            }
+        # check year is exist or not 
+        if year is None:
+            return {
+                "answer": "Please specify year."
+            }
+        
+        if day is None :
+            return {
+                "answer" : "Please specify day."
+            }
+
+        data = daily_total_milk_record(db,year,month,day)
+
+        ai_response = ai_format_response(question,data)
+
+        return {
+            "answer" : ai_response
+        }
+
     else:
-        return "intent not found"
+        return {
+            "answer": "Sorry, I could not understand your request."
+        }
 
