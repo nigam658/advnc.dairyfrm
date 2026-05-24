@@ -1,5 +1,4 @@
 from sqlalchemy import func
-from fastapi import Depends
 from sqlalchemy.orm import Session
 from datetime import date
 import calendar
@@ -7,7 +6,7 @@ import calendar
 from app.models.milk_model import MilkRecord
 
 
-def highest_milk(db: Session ):
+def highest_milk_cow(db: Session ):
     try:
         highestMilk = (db.query(
             MilkRecord.cow_tag,
@@ -16,8 +15,6 @@ def highest_milk(db: Session ):
             .order_by(func.sum(MilkRecord.milk_perDay).desc())
             .first() 
             )
-        
-
 
         return {"cow_tag" : highestMilk.cow_tag, 
                 "milk" : round(highestMilk.total_milk,2)
@@ -29,7 +26,7 @@ def highest_milk(db: Session ):
         }
 
 
-def lowest_milk(db: Session ):
+def lowest_milk_cow(db: Session ):
     try:
         lowestmilk = (db.query(
             MilkRecord.cow_tag,
@@ -48,27 +45,18 @@ def lowest_milk(db: Session ):
             "error" : str(e)
         }
     
-
-def today_milkdata(db:Session):
-    today = date.today()
-    try:
-        todaymilk = db.query(func.sum(
-            MilkRecord.milk_perDay)).filter(
-            MilkRecord.date == today).scalar()
-        
-
-        return{
-            "todaymilk" : todaymilk
-        }
-    
-    except Exception as e:
-        return {
-            "error" : str(e)
-        }
     
 
 #This month total milk
-def total_milk_ofMonth(db:Session, year, month):
+def monthly_total_milk(db:Session, year=None, month=None):
+    
+    today = date.today()
+
+    if year is None:
+        year = today.year
+
+    if month is None:
+        month = today.month
 
     start_date = date(year, month, 1)
     last_date = calendar.monthrange(year,month)[1] 
@@ -84,7 +72,8 @@ def total_milk_ofMonth(db:Session, year, month):
 
         
         return {
-            "total_milk" : total
+            "total_milk" : total,
+            "date" : start_date
         }
     
     except Exception as e:
@@ -92,7 +81,16 @@ def total_milk_ofMonth(db:Session, year, month):
             "Error" : str(e)
         }
 
-def monthly_highest_milk_cow(db:Session, year, month):
+def monthly_highest_milk_cow(db:Session, year=None, month=None):
+    
+    today = date.today()
+
+    if year is None:
+        year = today.year
+
+    if month is None:
+        month = today.month
+    
     start_date = date(year, month, 1)
     last_date = calendar.monthrange(year,month)[1]
     end_date = date(year,month,last_date)
@@ -117,7 +115,6 @@ def monthly_highest_milk_cow(db:Session, year, month):
         return{
             "cow_tag" : highest_milk_produce_cow.cow_tag,
             "total_milk" : round(highest_milk_produce_cow.total_milk,2),
-            "cow_name" : "Saraswati"
         }
     
     except Exception as e:
@@ -125,7 +122,20 @@ def monthly_highest_milk_cow(db:Session, year, month):
             "error" : str(e)
         }
 
-def daily_total_milk_record(db:Session, year, month, day):
+def daily_total_milk_record(db:Session, year=None, month=None, day=None):
+
+    today = date.today()
+
+
+    if year is None:
+        year = today.year
+
+    if month is None:
+        month = today.month
+
+    if day is None:
+        day = today.day
+
     try:
         exact_date = date(year, month, day)
 
@@ -137,7 +147,7 @@ def daily_total_milk_record(db:Session, year, month, day):
             milk = 0
     
         return {
-            "total_milk" : milk
+            "total_milk" : round(milk,2)
         }
     
     except Exception as e:
