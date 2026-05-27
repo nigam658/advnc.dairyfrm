@@ -95,13 +95,9 @@ uvicorn app.main:app --reload
 # Future Improvements
 
 * MCP integration
-* RAG-based dairy knowledge retrieval
 * ChromaDB vector search
 * Docker support
-* Redis caching
-* Dashboard analytics
 * Deployment pipeline
-* Inventory management
 * AI agent workflows
 
 ---
