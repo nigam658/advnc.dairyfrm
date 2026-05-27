@@ -95,7 +95,6 @@ uvicorn app.main:app --reload
 # Future Improvements
 
 * MCP integration
-* ChromaDB vector search
 * Docker support
 * Deployment pipeline
 * AI agent workflows
