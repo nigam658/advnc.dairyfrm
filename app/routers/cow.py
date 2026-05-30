@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from app.database import get_db
+from app.databases.mysqldb import get_db
 from app.models.cow_model import Cow
 from app.models.milk_model import MilkRecord
 from app.schemas.cow_schema import cowDataReq, Cow_updateSchema, get_single_cow_respons

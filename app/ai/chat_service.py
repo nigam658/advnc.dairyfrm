@@ -3,6 +3,7 @@ from app.ai.Geminiai_client import client
 import json
 import httpx
 from datetime import datetime
+from pydantic import ValidationError
 
 from app.service.ai_milk_service import (
     highest_milk_cow ,
@@ -11,6 +12,8 @@ from app.service.ai_milk_service import (
     monthly_highest_milk_cow, 
     daily_total_milk_record
     )
+from app.schemas.ai_schema import MonthlyMilkRequest,dailyTotalMilkRecord
+from app.rag.retriver import retrieve_text
 
 
 today = datetime.today()
@@ -18,7 +21,7 @@ TOOLS = [
     {
         "function_declarations" : [
             {
-                "name" : "highest_milk_production",
+                "name" : "highest_milk_cow",
 
                 "description" : """
                 Get the cow that produced the highest amount of milk of all time.
@@ -39,7 +42,7 @@ TOOLS = [
             
             # lowest produce cow
             {
-                "name" : "lowest_milk_production",
+                "name" : "lowest_milk_cow",
 
                 "description" : """
                 Get the cow that produced the lowest amount of milk of all time.
@@ -62,7 +65,7 @@ TOOLS = [
             
             # total milk of a month
             {
-                "name" : "total_milk_of_month",
+                "name" : "monthly_total_milk",
 
                 "description" : """
                 Get total milk production for a month.
@@ -107,18 +110,17 @@ TOOLS = [
 
             # cows monthly highest milk producer cow
             {
-                "name" : "monthly_highest_milk_given_cow",
+                "name" : "monthly_highest_milk_cow",
 
                 "description" : """
                 Find the highest milk producing cow for a specific month.
 
                 Examples:
-                - highest milk cow this month
+                - highest milk cow in this month
                 - top producer cow in april
                 - best milk cow monthly
                 - monthly highest milk cow
                 - which cow gave highest milk in may
-                - top milk producer in 2026
                 - highest producer cow for this month
                 - april top milk cow
                 - cow with maximum milk this month
@@ -196,6 +198,39 @@ TOOLS = [
                         }
                     }
                 }
+            },   
+            
+            # retrive text from cow information document
+            {
+                "name": "retrieve_text",
+
+                "description": """
+                Search dairy farm knowledge documents and retrieve relevant information.
+
+                Use this tool when the user asks questions about:
+                - buffalo feeding
+                - cow feeding
+                - dairy animal health
+                - mastitis
+                - vaccination
+                - dairy management
+                - animal nutrition
+                - dairy farming practices
+                - livestock care
+                - information stored in dairy documents
+
+                Examples:
+                - How to feed cows?
+                - What should a dairy cow eat?
+                - How to prevent mastitis?
+                - What are dairy farming best practices?
+                - How much green fodder should a cow receive?
+                - Explain cow nutrition.
+                - What is the proper feeding schedule for dairy animals?
+                - How to improve milk production through feeding?
+                - What are common dairy animal diseases?
+                - Give information about dairy husbandry.
+                """
             }
         ]
     }
@@ -204,14 +239,23 @@ TOOLS = [
 
 
 function_map = {
-    "highest_milk_production" : highest_milk_cow,
-    "lowest_milk_production" : lowest_milk_cow,
-    "total_milk_of_month" : monthly_total_milk,
-    "monthly_highest_milk_given_cow" : monthly_highest_milk_cow,
-    "daily_total_milk_record" : daily_total_milk_record
+    "highest_milk_cow" : highest_milk_cow,
+    "lowest_milk_cow" : lowest_milk_cow,
+    "monthly_total_milk" : monthly_total_milk,
+    "monthly_highest_milk_cow" : monthly_highest_milk_cow,
+    "daily_total_milk_record" : daily_total_milk_record,
+    "retrieve_text" : retrieve_text
 }
 
+validator_map = {
+    "daily_total_milk_record" :dailyTotalMilkRecord,
+    "monthly_total_milk" : MonthlyMilkRequest,
+    "monthly_highest_milk_cow": MonthlyMilkRequest,
+}
 
+rag_tools = {
+    "retrieve_text" : retrieve_text
+}
 
 def generate_human_response(question, result):
 
@@ -252,54 +296,104 @@ def generate_human_response(question, result):
     
     except httpx.ReadTimeout:
 
-        return "The AI service is taking too long to respond. Please try again."
+        return {"answer" :"The AI service is taking too long to respond. Please try again."}
     
     except ServerError :
-        return "Gemini server is temporarily unavailable."
+        return {"answer" : "Gemini server is temporarily unavailable."}
 
     except Exception as e:
-        return f"Error generating response: {str(e)}"
+        return {"answer" : "something went wrong "}
 
 
+# AI find the intent then generate human response send the human readable answer and return to user 
 def generate_response(question, db):
-    
-    response = client.models.generate_content(
+    try:
+        response = client.models.generate_content(
 
-        model="gemini-3.1-flash-lite",
-        contents=f"""
+            model="gemini-3.1-flash-lite",
+            contents=f"""
 
-        Current Date: {today}
+            Current Date: {today}
 
-        User Question:
-        {question}
+            User Question:
+            {question}
+            """,
 
-        """,
+            config={
+                "tools" : TOOLS 
+            }
+        )
 
-        config={
-            "tools" : TOOLS 
+        # access tool name from response and arguments if exist
+        tool_call = response.candidates[0].content.parts[0].function_call 
+        
+        if tool_call is None:
+            return {
+                "answer": response.text
+            }
+
+        # function name now contain intent fucntion
+        function_name = tool_call.name
+        print(function_name)
+
+        #if the fucntion required arguments then validatop map validate the pydantic model with arguments
+        validator = validator_map.get(function_name)
+ 
+        validated_args = tool_call.args
+
+
+        if validator :
+            try :
+                validated_args = validator(**tool_call.args).model_dump()
+
+            except ValidationError :
+                return{
+                    "answer" : "Invalid month, year or date"
+                }
+
+
+        # collect the main fucntion to call from the fucntion map
+        selected_function = function_map.get(function_name)
+
+        if not selected_function:
+            return {
+                "answer" : " unsupported operation"
+            }
+        
+        # call the function with arguments and get the result, /model_dump() covert pydantic model to dict 
+        if  selected_function in rag_tools.values():
+            result = selected_function(question)
+        else:
+            result = selected_function(db, **validated_args)
+        
+        # generate human readble answer from the result and question
+        final_result = generate_human_response(question, result)
+        
+        # for debugging purpose
+        print(result)
+        print(final_result)
+
+        return {
+            "answer": final_result
         }
-    )
-
-    tool_call = response.candidates[0].content.parts[0].function_call
-
-    print(tool_call)
-
-    # function name now contain intent fucntion
-    function_name = tool_call.name
-
-    args = {}
-
-    if tool_call.args :
-        args = dict(tool_call.args)
-
-    selected_function = function_map[function_name]
-
-    result = selected_function(db, **args)
     
-    final_result = generate_human_response(question, result)
-    print(result)
-    print(final_result)
+    except httpx.ReadTimeout:
+        return {
+            "answer" : "AI server timeout."
+        }
+    
+    except ServerError :
+        return {
+            "answer" : "Gemini server Unavailable."
+        }
+    
+    except Exception as e :
 
-    return {
-        "answer": final_result
-    }
+        print(e)
+
+        return {
+            "answer" : "somethinfg went wrong"
+        }
+    
+    
+

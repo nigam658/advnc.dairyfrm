@@ -1,4 +1,4 @@
-from app.database import Base
+from app.databases.mysqldb import Base
 from sqlalchemy import Column, Integer, String,Float, ForeignKey, Date
 
 # milk record table

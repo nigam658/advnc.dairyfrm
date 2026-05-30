@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from app.routers import auth, cow, milk,ai_router
 from app.models import cow_model, user_model
-from app.database import Base, engine
+from app.databases.mysqldb import Base, engine
 
 app = FastAPI()
 

@@ -34,10 +34,9 @@ def create_user(db ,user):
     
     db.add(new_user)
     db.commit()
+    db.refresh(new_user)
 
-    return {
-            "message" : "signup successfully done"
-        }
+    return new_user
                 
 def create_token_fnc(db, login_data):
 

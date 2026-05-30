@@ -1,5 +1,5 @@
 from sqlalchemy import Column, String, Integer, Float, ForeignKey, Date
-from app.database import Base
+from app.databases.mysqldb import Base
 
 class Cow(Base):
     __tablename__ = "cows"
