@@ -351,7 +351,6 @@ def generate_response(question, db):
                     "answer" : "Invalid month, year or date"
                 }
 
-
         # collect the main fucntion to call from the fucntion map
         selected_function = function_map.get(function_name)
 
